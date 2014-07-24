@@ -2,9 +2,13 @@
 
 (def ^:dynamic *world-width* 25)
 
-(defn get-grid-index [position]
+(defn get-index [position]
   (let [{x :x y :y} position]
     (+ x (* y *world-width*))))
+
+(defn get-position [index]
+  {:x (mod index *world-width*)
+   :y (int (/ index *world-width*))})
 
 (defn print-world [world]
   (doseq [row (partition *world-width* world)]
@@ -13,19 +17,16 @@
     (if (last row) (println 1) (println 0))))
 
 (defn adjacent-life [index world]
-  (let [max (dec (count world))
-        min 0]
+  (let [xmax (dec *world-width*)
+        ymax (int (/ (dec (count world)) *world-width*))
+        {x :x y :y} (get-position index)]
     (reduce +
-            (for [i [(dec (- index *world-width*))
-                     (- index *world-width*)
-                     (inc (- index *world-width*))
-                     (dec index)
-                     (inc index)
-                     (dec (+ index *world-width*))
-                     (+ index *world-width*)
-                     (inc (+ index *world-width*))]
-                  :when (and (>= i min)
-                             (<= i max))]
+            (for [xo (range -1 2)
+                  yo (range -1 2)
+                  :let [i (get-index {:x (+ x xo) :y (+ y yo)})]
+                  :when (and (not (= i index))
+                             (<= 0 (+ x xo) xmax)
+                             (<= 0 (+ y yo) ymax))]
               (if (nth world i) 1 0)))))
 
 (defn pass-generation [world]
@@ -36,3 +37,6 @@
         (2 3) true)
       (= 3 (adjacent-life index world)))))
       
+(defn life-sequence [world]
+  (cons world
+        (lazy-seq (life-sequence (pass-generation world)))))
