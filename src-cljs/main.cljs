@@ -44,3 +44,45 @@
         (lazy-seq (life-sequence (pass-generation world)))))
 
 ;;; Interface ;;;
+
+(defn draw-row [row row-index]
+  (this-as this
+    (let [selection (-> (d3/select this)
+                        (.selectAll "rect")
+                        (.data (into-array row)))]
+      (-> selection
+          (.attr "height" "10")
+          (.attr "width" "10")
+          (.attr "x" #(str (* 10 %2)))
+          (.attr "y" (str (* 10 row-index)))
+          (.style "fill-opacity" "1")
+          (.style "fill" #(if % "white" "black")))
+      (-> selection
+          (.enter)
+          (.append "rect")
+          (.attr "height" "10")
+          (.attr "width" "10")
+          (.attr "x" #(str (* 10 %2)))
+          (.attr "y" (str (* 10 row-index)))
+          (.style "fill-opacity" "1")
+          (.style "fill" #(if % "white" "black")))
+      (-> selection
+          (.exit)
+          (.remove)))))
+
+(defn draw-world [world]
+  (let [selection (-> (d3/select "svg#field")
+                      (.selectAll "g.row")
+                      (.data (into-array (partition *world-width* world))))]
+    (-> selection
+        (.each draw-row))
+    (-> selection
+        (.enter)
+        (.append "g")
+        (.attr "class" "row")
+        (.each draw-row))
+    (-> selection
+        (.exit)
+        (.remove))))
+
+(def world (repeatedly 625 #(< (rand) 0.5)))
