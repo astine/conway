@@ -10,5 +10,5 @@
   {:builds 
    [{:source-paths ["src-cljs"]
      :compiler 
-     {:output-to "target/js/main.js"
+     {:output-to "www/js/main.js"
       :pretty-print true}}]})

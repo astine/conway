@@ -1,5 +1,7 @@
 (ns main)
 
+;;; Conway engine ;;;
+
 (def ^:dynamic *world-width* 25)
 
 (defn get-index [position]
@@ -40,3 +42,5 @@
 (defn life-sequence [world]
   (cons world
         (lazy-seq (life-sequence (pass-generation world)))))
+
+;;; Interface ;;;
