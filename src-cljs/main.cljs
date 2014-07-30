@@ -3,7 +3,7 @@
 ;;; Conway engine ;;;
 
 (def ^:dynamic *world-width* 25)
-(def ^:dynamic *world-height* 25)
+(def ^:dynamic *world-height* 20)
 
 (defn get-index [position]
   (let [{x :x y :y} position]
@@ -72,39 +72,44 @@
 ;;; Interface ;;;
 
 (defn draw-world [world]
-  (this-as this
-    (let [selection (-> (d3/select "svg#field")
-                        (.selectAll "rect")
-                        (.data world))]
-      (-> selection
-          (.transition)
-          (.delay 10)
-          (.duration 1000)
-          (.attr "height" "15")
-          (.attr "width" "15")
-          (.attr "x" #(str (* 15 (:x (get-position %2)))))
-          (.attr "y" #(str (* 15 (:y (get-position %2)))))
-          (.style "fill-opacity" "1")
-          (.style "fill" #(if % "black" "white"))
-          (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
-          ;(.each "end" #(if (zero? %2) (js/alert "test"))))
-      (-> selection
-          (.enter)
-          (.append "rect")
-          (.transition)
-          (.delay 10)
-          (.duration 1000)
-          (.attr "height" "15")
-          (.attr "width" "15")
-          (.attr "x" #(str (* 15 (:x (get-position %2)))))
-          (.attr "y" #(str (* 15 (:y (get-position %2)))))
-          (.style "fill-opacity" "1")
-          (.style "fill" #(if % "black" "white"))
-          (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
-          ;(.each "end" #(if (zero? %2) (js/alert "test"))))
-      (-> selection
-          (.exit)
-          (.remove)))))
+  (let [selection (-> (d3/select "svg#field")
+                      (.selectAll "rect")
+                      (.data world))
+        tile-height (-> (js/jQuery "svg#field")
+                        (.first)
+                        (.height)
+                        (/ *world-height*))
+        tile-width (-> (js/jQuery "svg#field")
+                       (.first)
+                       (.width)
+                       (/ *world-width*))]
+    (-> selection
+        (.transition)
+        (.delay 5)
+        (.duration 10)
+        (.attr "height" (str tile-height))
+        (.attr "width" (str tile-width))
+        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
+        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
+        (.style "fill-opacity" "1")
+        (.style "fill" #(if % "black" "white"))
+        (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
+    (-> selection
+        (.enter)
+        (.append "rect")
+        (.transition)
+        (.delay 5)
+        (.duration 10)
+        (.attr "height" (str tile-height))
+        (.attr "width" (str tile-width))
+        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
+        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
+        (.style "fill-opacity" "1")
+        (.style "fill" #(if % "black" "white"))
+        (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
+    (-> selection
+        (.exit)
+        (.remove))))
 
 (def world (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5))))
 
