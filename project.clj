@@ -11,4 +11,5 @@
    [{:source-paths ["src-cljs"]
      :compiler 
      {:output-to "www/js/main.js"
+      :optimizations :advanced
       :pretty-print true}}]})

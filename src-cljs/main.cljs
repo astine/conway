@@ -3,6 +3,7 @@
 ;;; Conway engine ;;;
 
 (def ^:dynamic *world-width* 25)
+(def ^:dynamic *world-height* 25)
 
 (defn get-index [position]
   (let [{x :x y :y} position]
@@ -20,24 +21,49 @@
 
 (defn adjacent-life [index world]
   (let [xmax (dec *world-width*)
-        ymax (int (/ (dec (count world)) *world-width*))
-        {x :x y :y} (get-position index)]
-    (reduce +
-            (for [xo (range -1 2)
-                  yo (range -1 2)
-                  :let [i (get-index {:x (+ x xo) :y (+ y yo)})]
-                  :when (and (not (= i index))
-                             (<= 0 (+ x xo) xmax)
-                             (<= 0 (+ y yo) ymax))]
-              (if (nth world i) 1 0)))))
+        ymax (dec *world-height*)
+        {x :x y :y} (get-position index)
+        decx (dec x)
+        decy (dec y)
+        incx (inc x)
+        incy (inc y)]
+    (+ (if (and (<= 0 decx xmax)
+                (<= 0 decy ymax)
+                (nth world (get-index {:x decx :y decy})))
+         1 0)
+       (if (and (<= 0 incx xmax)
+                (<= 0 incy ymax)
+                (nth world (get-index {:x incx :y incy})))
+         1 0)
+       (if (and (<= 0 decx xmax)
+                (<= 0 incy ymax)
+                (nth world (get-index {:x decx :y incy})))
+         1 0)
+       (if (and (<= 0 incx xmax)
+                (<= 0 decy ymax)
+                (nth world (get-index {:x incx :y decy})))
+         1 0)
+       (if (and (<= 0 decx xmax)
+                (nth world (get-index {:x decx :y y})))
+         1 0)
+       (if (and (<= 0 incx xmax)
+                (nth world (get-index {:x incx :y y})))
+         1 0)
+       (if (and (<= 0 decy ymax)
+                (nth world (get-index {:x x :y decy})))
+         1 0)
+       (if (and (<= 0 incy ymax)
+                (nth world (get-index {:x x :y incy})))
+         1 0))))
 
 (defn pass-generation [world]
-  (for [index (range (count world))]
-    (if (nth world index)
-      (case (adjacent-life index world)
-        (0 1 4 5 6 7 8) false
-        (2 3) true)
-      (= 3 (adjacent-life index world)))))
+  (into-array
+   (for [index (range (count world))]
+     (if (nth world index)
+       (case (adjacent-life index world)
+         (0 1 4 5 6 7 8) false
+         (2 3) true)
+       (= 3 (adjacent-life index world))))))
       
 (defn life-sequence [world]
   (cons world
@@ -45,44 +71,40 @@
 
 ;;; Interface ;;;
 
-(defn draw-row [row row-index]
+(defn draw-world [world]
   (this-as this
-    (let [selection (-> (d3/select this)
+    (let [selection (-> (d3/select "svg#field")
                         (.selectAll "rect")
-                        (.data (into-array row)))]
+                        (.data world))]
       (-> selection
-          (.attr "height" "10")
-          (.attr "width" "10")
-          (.attr "x" #(str (* 10 %2)))
-          (.attr "y" (str (* 10 row-index)))
+          (.transition)
+          (.delay 10)
+          (.duration 1000)
+          (.attr "height" "15")
+          (.attr "width" "15")
+          (.attr "x" #(str (* 15 (:x (get-position %2)))))
+          (.attr "y" #(str (* 15 (:y (get-position %2)))))
           (.style "fill-opacity" "1")
-          (.style "fill" #(if % "white" "black")))
+          (.style "fill" #(if % "black" "white"))
+          (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
+          ;(.each "end" #(if (zero? %2) (js/alert "test"))))
       (-> selection
           (.enter)
           (.append "rect")
-          (.attr "height" "10")
-          (.attr "width" "10")
-          (.attr "x" #(str (* 10 %2)))
-          (.attr "y" (str (* 10 row-index)))
+          (.transition)
+          (.delay 10)
+          (.duration 1000)
+          (.attr "height" "15")
+          (.attr "width" "15")
+          (.attr "x" #(str (* 15 (:x (get-position %2)))))
+          (.attr "y" #(str (* 15 (:y (get-position %2)))))
           (.style "fill-opacity" "1")
-          (.style "fill" #(if % "white" "black")))
+          (.style "fill" #(if % "black" "white"))
+          (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
+          ;(.each "end" #(if (zero? %2) (js/alert "test"))))
       (-> selection
           (.exit)
           (.remove)))))
 
-(defn draw-world [world]
-  (let [selection (-> (d3/select "svg#field")
-                      (.selectAll "g.row")
-                      (.data (into-array (partition *world-width* world))))]
-    (-> selection
-        (.each draw-row))
-    (-> selection
-        (.enter)
-        (.append "g")
-        (.attr "class" "row")
-        (.each draw-row))
-    (-> selection
-        (.exit)
-        (.remove))))
+(def world (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5))))
 
-(def world (repeatedly 625 #(< (rand) 0.5)))
