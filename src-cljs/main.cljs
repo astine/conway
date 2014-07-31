@@ -71,6 +71,8 @@
 
 ;;; Interface ;;;
 
+(def playing (atom false))
+
 (defn draw-world [world]
   (let [selection (-> (d3/select "svg#field")
                       (.selectAll "rect")
@@ -93,7 +95,7 @@
         (.attr "x" #(str (* tile-width (:x (get-position %2)))))
         (.style "fill-opacity" "1")
         (.style "fill" #(if % "black" "white"))
-        (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
+        (.each "end" #(if (and (zero? %2) @playing) (draw-world (pass-generation world)))))
     (-> selection
         (.enter)
         (.append "rect")
@@ -106,10 +108,20 @@
         (.attr "x" #(str (* tile-width (:x (get-position %2)))))
         (.style "fill-opacity" "1")
         (.style "fill" #(if % "black" "white"))
-        (.each "end" #(if (zero? %2) (draw-world (pass-generation world)))))
+        (.each "end" #(if (and (zero? %2) @playing) (draw-world (pass-generation world)))))
     (-> selection
         (.exit)
         (.remove))))
 
-(def world (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5))))
+(defn generate-world []
+ (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5))))
+
+(def world (atom (generate-world)))
+
+(defn play []
+  (swap! playing (constantly true))
+  (draw-world @world))
+
+(defn stop []
+  (swap! playing (constantly false)))
 
