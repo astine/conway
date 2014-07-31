@@ -65,63 +65,86 @@
          (2 3) true)
        (= 3 (adjacent-life index world))))))
       
-(defn life-sequence [world]
-  (cons world
-        (lazy-seq (life-sequence (pass-generation world)))))
-
 ;;; Interface ;;;
-
-(def playing (atom false))
-
-(defn draw-world [world]
-  (let [selection (-> (d3/select "svg#field")
-                      (.selectAll "rect")
-                      (.data world))
-        tile-height (-> (js/jQuery "svg#field")
-                        (.first)
-                        (.height)
-                        (/ *world-height*))
-        tile-width (-> (js/jQuery "svg#field")
-                       (.first)
-                       (.width)
-                       (/ *world-width*))]
-    (-> selection
-        (.transition)
-        (.delay 5)
-        (.duration 10)
-        (.attr "height" (str tile-height))
-        (.attr "width" (str tile-width))
-        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
-        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
-        (.style "fill-opacity" "1")
-        (.style "fill" #(if % "black" "white"))
-        (.each "end" #(if (and (zero? %2) @playing) (draw-world (pass-generation world)))))
-    (-> selection
-        (.enter)
-        (.append "rect")
-        (.transition)
-        (.delay 5)
-        (.duration 10)
-        (.attr "height" (str tile-height))
-        (.attr "width" (str tile-width))
-        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
-        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
-        (.style "fill-opacity" "1")
-        (.style "fill" #(if % "black" "white"))
-        (.each "end" #(if (and (zero? %2) @playing) (draw-world (pass-generation world)))))
-    (-> selection
-        (.exit)
-        (.remove))))
 
 (defn generate-world []
  (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5))))
 
 (def world (atom (generate-world)))
 
+(def world-history (atom nil))
+
+(def playing (atom false))
+
+(defn life-sequence [world]
+  (iterate pass-generation world))
+
+(defn sequence-with-history [sequence]
+  (for [iteration sequence]
+    (do
+      (when iteration
+        (swap! world (constantly iteration)))
+      (swap! world-history conj iteration)
+      iteration)))
+
+(defn draw-world [life-sequence]
+  (when life-sequence
+    (let [selection (-> (d3/select "svg#field")
+                        (.selectAll "rect")
+                        (.data (first life-sequence)))
+          tile-height (-> (js/jQuery "svg#field")
+                          (.first)
+                          (.height)
+                          (/ *world-height*))
+          tile-width (-> (js/jQuery "svg#field")
+                         (.first)
+                         (.width)
+                         (/ *world-width*))]
+      (-> selection
+          (.transition)
+          (.delay 5)
+          (.duration 10)
+          (.attr "height" (str tile-height))
+          (.attr "width" (str tile-width))
+          (.attr "y" #(str (* tile-height (:y (get-position %2)))))
+          (.attr "x" #(str (* tile-width (:x (get-position %2)))))
+          (.style "fill-opacity" "1")
+          (.style "fill" #(if % "black" "white"))
+          (.each "end" #(if (and (zero? %2) @playing) (draw-world (rest life-sequence)))))
+      (-> selection
+          (.enter)
+          (.append "rect")
+          (.transition)
+          (.delay 5)
+          (.duration 10)
+          (.attr "height" (str tile-height))
+          (.attr "width" (str tile-width))
+          (.attr "y" #(str (* tile-height (:y (get-position %2)))))
+          (.attr "x" #(str (* tile-width (:x (get-position %2)))))
+          (.style "fill-opacity" "1")
+          (.style "fill" #(if % "black" "white"))
+          (.each "end" #(if (and (zero? %2) @playing) (draw-world (rest life-sequence)))))
+      (-> selection
+          (.exit)
+          (.remove)))))
+
 (defn play []
   (swap! playing (constantly true))
-  (draw-world @world))
+  (draw-world (sequence-with-history (life-sequence @world))))
 
 (defn stop []
   (swap! playing (constantly false)))
 
+(defn rewind []
+  (swap! playing (constantly true))
+  (draw-world @world-history))
+  
+
+(def play (-> (d3/select "#play")
+              (.on "click" play)))
+
+(def stop (-> (d3/select "#stop")
+              (.on "click" stop)))
+
+(def rewind (-> (d3/select "#rewind")
+                (.on "click" rewind)))
