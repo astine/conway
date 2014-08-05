@@ -19,7 +19,7 @@
       (if square (print 1) (print 0)))
     (if (last row) (println 1) (println 0))))
 
-(defn adjacent-life [index world]
+(defn adjacent-life [index life]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
         {x :x y :y} (get-position index)
@@ -29,46 +29,118 @@
         incy (inc y)]
     (+ (if (and (<= 0 decx xmax)
                 (<= 0 decy ymax)
-                (nth world (get-index {:x decx :y decy})))
+                (nth life (get-index {:x decx :y decy})))
          1 0)
        (if (and (<= 0 incx xmax)
                 (<= 0 incy ymax)
-                (nth world (get-index {:x incx :y incy})))
+                (nth life (get-index {:x incx :y incy})))
          1 0)
        (if (and (<= 0 decx xmax)
                 (<= 0 incy ymax)
-                (nth world (get-index {:x decx :y incy})))
+                (nth life (get-index {:x decx :y incy})))
          1 0)
        (if (and (<= 0 incx xmax)
                 (<= 0 decy ymax)
-                (nth world (get-index {:x incx :y decy})))
+                (nth life (get-index {:x incx :y decy})))
          1 0)
        (if (and (<= 0 decx xmax)
-                (nth world (get-index {:x decx :y y})))
+                (nth life (get-index {:x decx :y y})))
          1 0)
        (if (and (<= 0 incx xmax)
-                (nth world (get-index {:x incx :y y})))
+                (nth life (get-index {:x incx :y y})))
          1 0)
        (if (and (<= 0 decy ymax)
-                (nth world (get-index {:x x :y decy})))
+                (nth life (get-index {:x x :y decy})))
          1 0)
        (if (and (<= 0 incy ymax)
-                (nth world (get-index {:x x :y incy})))
+                (nth life (get-index {:x x :y incy})))
          1 0))))
 
-(defn pass-generation [world]
+(defn generate-adjacencies [life]
   (into-array
-   (for [index (range (count world))]
-     (if (nth world index)
-       (case (adjacent-life index world)
-         (0 1 4 5 6 7 8) false
-         (2 3) true)
-       (= 3 (adjacent-life index world))))))
+   (for [index (range (count life))]
+     (adjacent-life index life))))
+
+(defn set-adjacencies [index adjacencies inc-or-dec]
+  (let [xmax (dec *world-width*)
+        ymax (dec *world-height*)
+        {x :x y :y} (get-position index)
+        decx (dec x)
+        decy (dec y)
+        incx (inc x)
+        incy (inc y)]
+    (as-> adjacencies adjacencies
+          (if (and (<= 0 decx xmax)
+                   (<= 0 decy ymax))
+            (let [index (get-index {:x decx :y decy})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies)
+          (if (and (<= 0 incx xmax)
+                   (<= 0 incy ymax))
+            (let [index (get-index {:x incx :y incy})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies)
+          (if (and (<= 0 decx xmax)
+                   (<= 0 incy ymax))
+            (let [index (get-index {:x decx :y incy})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies)
+          (if (and (<= 0 incx xmax)
+                   (<= 0 decy ymax))
+            (let [index (get-index {:x incx :y decy})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies)
+          (if (<= 0 decx xmax)
+            (let [index (get-index {:x decx :y y})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies)
+          (if (<= 0 incx xmax)
+            (let [index (get-index {:x incx :y y})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies)
+          (if (<= 0 decy ymax)
+            (let [index (get-index {:x x :y decy})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies)
+          (if (<= 0 incy ymax)
+            (let [index (get-index {:x x :y incy})]
+              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
+            adjacencies))))
+
+(defn pass-generation [world-adj]
+  (loop [world (first world-adj)
+         adjacencies (second world-adj)
+         index 0
+         nworld (transient (vec (first world-adj)))
+         nadjs (transient (vec (second world-adj)))]
+    (if (not-empty world)
+      (if (first world)
+        (case (first adjacencies)
+          (0 1 4 5 6 7 8)
+          (recur (rest world) (rest adjacencies)
+                 (inc index)
+                 (assoc! nworld index false)
+                 (set-adjacencies index nadjs dec))
+          (2 3)
+          (recur (rest world) (rest adjacencies)
+                 (inc index)
+                 nworld nadjs))
+        (if (= 3 (first adjacencies))
+          (recur (rest world) (rest adjacencies)
+                 (inc index)
+                 (assoc! nworld index true)
+                 (set-adjacencies index nadjs inc)) 
+          (recur (rest world) (rest adjacencies)
+                 (inc index)
+                 nworld nadjs)))
+      (vector (into-array (persistent! nworld))
+              (into-array (persistent! nadjs))))))
       
 ;;; Interface ;;;
 
 (defn generate-world []
- (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5))))
+  (let [life (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5)))]
+    [life (into-array (generate-adjacencies life))]))
 
 (def world (atom (generate-world)))
 
@@ -130,21 +202,21 @@
 
 (defn play []
   (swap! playing (constantly true))
-  (draw-world (sequence-with-history (life-sequence @world))))
+  (draw-world (map first (sequence-with-history (life-sequence @world)))))
 
 (defn stop []
   (swap! playing (constantly false)))
 
 (defn rewind []
   (swap! playing (constantly true))
-  (draw-world @world-history))
+  (draw-world (map first @world-history)))
   
 
-(def play (-> (d3/select "#play")
-              (.on "click" play)))
+(def play-button (-> (d3/select "#play")
+                     (.on "click" play)))
 
-(def stop (-> (d3/select "#stop")
-              (.on "click" stop)))
+(def stop-button (-> (d3/select "#stop")
+                     (.on "click" stop)))
 
-(def rewind (-> (d3/select "#rewind")
-                (.on "click" rewind)))
+(def rewind-button (-> (d3/select "#rewind")
+                       (.on "click" rewind)))
