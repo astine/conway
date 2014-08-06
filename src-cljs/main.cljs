@@ -3,8 +3,8 @@
 
 ;;; Conway engine ;;;
 
-(def ^:dynamic *world-width* 50)
-(def ^:dynamic *world-height* 40)
+(def ^:dynamic *world-width* 100)
+(def ^:dynamic *world-height* 80)
 
 (defn get-index [position]
   (let [{x :x y :y} position]
@@ -108,7 +108,7 @@
               (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
             adjacencies))))
 
-(defn pass-generation2 [world-adj]
+(defn pass-generation [world-adj]
   (loop [world (first world-adj)
          adjacencies (second world-adj)
          index 0
@@ -145,10 +145,13 @@
           :else
           (recur (rest life) (rest indexes) point-array))))
 
+(defn world-to-point-array [world]
+  (life-to-point-array (first world)))
+
 ;;; Interface ;;;
 
 (defn generate-world []
-  (let [life (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.5)))]
+  (let [life (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.25)))]
     [life (into-array (generate-adjacencies life))]))
 
 (def world (atom (generate-world)))
@@ -183,19 +186,24 @@
                        (.width)
                        (/ *world-width*))]
     (-> selection
-        (.duration duration)
-        (.style "fill" #(if % "black" "white"))
+        (.attr "y" #(str (* tile-height (:y %))))
+        (.attr "x" #(str (* tile-width (:x %))))
+        (.transition)
+        (.delay duration)
+        (.duration 1)
         (.each "end" callback))
     (-> selection
         (.enter)
         (.append "rect")
-        (.duration duration)
         (.attr "height" (str tile-height))
         (.attr "width" (str tile-width))
-        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
-        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
+        (.attr "y" #(str (* tile-height (:y %))))
+        (.attr "x" #(str (* tile-width (:x %))))
         (.style "fill-opacity" "1")
-        (.style "fill" #(if % "black" "white"))
+        (.style "fill" "black")
+        (.transition)
+        (.delay duration)
+        (.duration 1)
         (.each "end" callback))
     (-> selection
         (.exit)
@@ -210,14 +218,14 @@
 
 (defn play []
   (swap! playing (constantly true))
-  (draw-life-sequence (map first (sequence-with-history (life-sequence @world)))))
+  (draw-life-sequence (sequence-with-history (map world-to-point-array (life-sequence @world)))))
 
 (defn stop []
   (swap! playing (constantly false)))
 
 (defn rewind []
   (swap! playing (constantly true))
-  (draw-life-sequence (map first @world-history)))
+  (draw-life-sequence @world-history))
   
 (def speed-box (d3/select "#speed"))
 
