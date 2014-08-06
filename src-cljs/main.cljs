@@ -1,4 +1,5 @@
-(ns main)
+(ns main
+  (:require [cljs.reader :refer [read-string]]))
 
 ;;; Conway engine ;;;
 
@@ -159,58 +160,70 @@
       (swap! world-history conj iteration)
       iteration)))
 
-(defn draw-world [life-sequence]
+(def duration (atom 50))
+
+(defn draw-life [life duration callback]
+  (let [selection (-> (d3/select "svg#field")
+                      (.selectAll "rect")
+                      (.data life))
+        tile-height (-> (js/jQuery "svg#field")
+                        (.first)
+                        (.height)
+                        (/ *world-height*))
+        tile-width (-> (js/jQuery "svg#field")
+                       (.first)
+                       (.width)
+                       (/ *world-width*))]
+    (-> selection
+        (.transition)
+        (.duration duration)
+        (.attr "height" (str tile-height))
+        (.attr "width" (str tile-width))
+        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
+        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
+        (.style "fill-opacity" "1")
+        (.style "fill" #(if % "black" "white"))
+        (.each "end" callback))
+    (-> selection
+        (.enter)
+        (.append "rect")
+        (.transition)
+        (.duration duration)
+        (.attr "height" (str tile-height))
+        (.attr "width" (str tile-width))
+        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
+        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
+        (.style "fill-opacity" "1")
+        (.style "fill" #(if % "black" "white"))
+        (.each "end" callback))
+    (-> selection
+        (.exit)
+        (.remove))))
+
+(defn draw-life-sequence [life-sequence]
   (when life-sequence
-    (let [selection (-> (d3/select "svg#field")
-                        (.selectAll "rect")
-                        (.data (first life-sequence)))
-          tile-height (-> (js/jQuery "svg#field")
-                          (.first)
-                          (.height)
-                          (/ *world-height*))
-          tile-width (-> (js/jQuery "svg#field")
-                         (.first)
-                         (.width)
-                         (/ *world-width*))]
-      (-> selection
-          (.transition)
-          (.delay 5)
-          (.duration 10)
-          (.attr "height" (str tile-height))
-          (.attr "width" (str tile-width))
-          (.attr "y" #(str (* tile-height (:y (get-position %2)))))
-          (.attr "x" #(str (* tile-width (:x (get-position %2)))))
-          (.style "fill-opacity" "1")
-          (.style "fill" #(if % "black" "white"))
-          (.each "end" #(if (and (zero? %2) @playing) (draw-world (rest life-sequence)))))
-      (-> selection
-          (.enter)
-          (.append "rect")
-          (.transition)
-          (.delay 5)
-          (.duration 10)
-          (.attr "height" (str tile-height))
-          (.attr "width" (str tile-width))
-          (.attr "y" #(str (* tile-height (:y (get-position %2)))))
-          (.attr "x" #(str (* tile-width (:x (get-position %2)))))
-          (.style "fill-opacity" "1")
-          (.style "fill" #(if % "black" "white"))
-          (.each "end" #(if (and (zero? %2) @playing) (draw-world (rest life-sequence)))))
-      (-> selection
-          (.exit)
-          (.remove)))))
+    (draw-life (first life-sequence)
+               @duration
+               #(if (and (zero? %2) @playing)
+                  (draw-life-sequence (rest life-sequence))))))
 
 (defn play []
   (swap! playing (constantly true))
-  (draw-world (map first (sequence-with-history (life-sequence @world)))))
+  (draw-life-sequence (map first (sequence-with-history (life-sequence @world)))))
 
 (defn stop []
   (swap! playing (constantly false)))
 
 (defn rewind []
   (swap! playing (constantly true))
-  (draw-world (map first @world-history)))
+  (draw-life-sequence (map first @world-history)))
   
+(def speed-box (d3/select "#speed"))
+
+(defn set-speed []
+  (swap! duration (constantly (/ 1000 (read-string (get (first (first speed-box)) "value"))))))
+
+(.on speed-box "change" set-speed)
 
 (def play-button (-> (d3/select "#play")
                      (.on "click" play)))
