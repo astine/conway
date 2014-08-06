@@ -3,8 +3,8 @@
 
 ;;; Conway engine ;;;
 
-(def ^:dynamic *world-width* 25)
-(def ^:dynamic *world-height* 20)
+(def ^:dynamic *world-width* 50)
+(def ^:dynamic *world-height* 40)
 
 (defn get-index [position]
   (let [{x :x y :y} position]
@@ -108,7 +108,7 @@
               (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
             adjacencies))))
 
-(defn pass-generation [world-adj]
+(defn pass-generation2 [world-adj]
   (loop [world (first world-adj)
          adjacencies (second world-adj)
          index 0
@@ -116,16 +116,15 @@
          nadjs (transient (vec (second world-adj)))]
     (if (not-empty world)
       (if (first world)
-        (case (first adjacencies)
-          (0 1 4 5 6 7 8)
+        (if (or (= 2 (first adjacencies))
+                (= 3 (first adjacencies)))
+          (recur (rest world) (rest adjacencies)
+                 (inc index)
+                 nworld nadjs)
           (recur (rest world) (rest adjacencies)
                  (inc index)
                  (assoc! nworld index false)
-                 (set-adjacencies index nadjs dec))
-          (2 3)
-          (recur (rest world) (rest adjacencies)
-                 (inc index)
-                 nworld nadjs))
+                 (set-adjacencies index nadjs dec)))
         (if (= 3 (first adjacencies))
           (recur (rest world) (rest adjacencies)
                  (inc index)
@@ -136,7 +135,16 @@
                  nworld nadjs)))
       (vector (into-array (persistent! nworld))
               (into-array (persistent! nadjs))))))
-      
+
+(defn life-to-point-array [life]
+  (loop [life life indexes (range) point-array (transient [])]
+    (cond (empty? life)
+          (into-array (persistent! point-array))
+          (first life)
+          (recur (rest life) (rest indexes) (conj! point-array (get-position (first indexes))))
+          :else
+          (recur (rest life) (rest indexes) point-array))))
+
 ;;; Interface ;;;
 
 (defn generate-world []
@@ -175,19 +183,12 @@
                        (.width)
                        (/ *world-width*))]
     (-> selection
-        (.transition)
         (.duration duration)
-        (.attr "height" (str tile-height))
-        (.attr "width" (str tile-width))
-        (.attr "y" #(str (* tile-height (:y (get-position %2)))))
-        (.attr "x" #(str (* tile-width (:x (get-position %2)))))
-        (.style "fill-opacity" "1")
         (.style "fill" #(if % "black" "white"))
         (.each "end" callback))
     (-> selection
         (.enter)
         (.append "rect")
-        (.transition)
         (.duration duration)
         (.attr "height" (str tile-height))
         (.attr "width" (str tile-width))
