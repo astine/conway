@@ -3,8 +3,8 @@
 
 ;;; Conway engine ;;;
 
-(def ^:dynamic *world-width* 100)
-(def ^:dynamic *world-height* 80)
+(def ^:dynamic *world-width* 75)
+(def ^:dynamic *world-height* 60)
 
 (defn get-index [position]
   (let [{x :x y :y} position]
@@ -171,7 +171,7 @@
       (swap! world-history conj iteration)
       iteration)))
 
-(def duration (atom 50))
+(def duration (atom 500))
 
 (defn draw-life [life duration callback]
   (let [selection (-> (d3/select "svg#field")
@@ -226,6 +226,9 @@
 (defn rewind []
   (swap! playing (constantly true))
   (draw-life-sequence @world-history))
+
+(defn forward []
+  (swap! duration #(/ % 2)))
   
 (def speed-box (d3/select "#speed"))
 
@@ -234,7 +237,7 @@
 
 (.on speed-box "change" set-speed)
 
-(def play-button (-> (d3/select "#play")
+(def play-button (-> (d3/select "#play-pause")
                      (.on "click" play)))
 
 (def stop-button (-> (d3/select "#stop")
@@ -242,3 +245,6 @@
 
 (def rewind-button (-> (d3/select "#rewind")
                        (.on "click" rewind)))
+
+(def forward-button (-> (d3/select "#forward")
+                        (.on "click" forward)))
