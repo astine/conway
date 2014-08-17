@@ -1,10 +1,13 @@
 (ns main
-  (:require [cljs.reader :refer [read-string]]))
+  (:require [cljs.reader :refer [read-string]]
+            [reagent.core :as reagent :refer [atom]]
+            [cljs.core.async :refer [<! chan onto-chan]])
+  (:require-macros [cljs.core.async.macros :refer [go]]))
 
 ;;; Conway engine ;;;
 
-(def ^:dynamic *world-width* 75)
-(def ^:dynamic *world-height* 60)
+(def ^:dynamic *world-width* 50)
+(def ^:dynamic *world-height* 40)
 
 (defn get-index [position]
   (let [{x :x y :y} position]
@@ -150,28 +153,18 @@
 
 ;;; Interface ;;;
 
-(defn generate-world []
+(defn blank-world []
+  (let [life (into-array (repeat (* *world-width* *world-height*) false))]
+    [life (into-array (repeat (* *world-width* *world-height*) 0))]))
+
+(defn random-world []
   (let [life (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.25)))]
     [life (into-array (generate-adjacencies life))]))
-
-(def world (atom (generate-world)))
-
-(def world-history (atom nil))
-
-(def playing (atom false))
 
 (defn life-sequence [world]
   (iterate pass-generation world))
 
-(defn sequence-with-history [sequence]
-  (for [iteration sequence]
-    (do
-      (when iteration
-        (swap! world (constantly iteration)))
-      (swap! world-history conj iteration)
-      iteration)))
-
-(def duration (atom 500))
+(def playing (atom false))
 
 (defn draw-life [life duration callback]
   (let [selection (-> (d3/select "svg#field")
@@ -209,42 +202,111 @@
         (.exit)
         (.remove))))
 
+(def duration (atom 20))
+
+(declare stop)
+
 (defn draw-life-sequence [life-sequence]
-  (when life-sequence
+  (if (not-empty life-sequence)
     (draw-life (first life-sequence)
                @duration
                #(if (and (zero? %2) @playing)
-                  (draw-life-sequence (rest life-sequence))))))
+                  (draw-life-sequence (rest life-sequence))))
+    (stop)))
+
+(def world-future (atom nil))
+
+(def world-history (atom nil))
+
+(def world (atom nil))
+
+(defn sequence-with-history 
+  ([future world history]
+     (sequence-with-history @future future world history))
+  ([sequence future world history]
+     (when (not-empty sequence)
+       (lazy-seq
+        (cons (first sequence)
+              (sequence-with-history 
+               (do 
+                 (swap! history conj @world)
+                 (reset! world (first sequence))
+                 (reset! future (rest sequence))
+                 (rest sequence))
+               future world history))))))
+
+(defn initialize-world [& [type]]
+  (reset! world-history nil)
+  (case (or type :random)
+    :random (reset! world-future (life-sequence (random-world)))
+    :blank (reset! world-future (life-sequence (blank-world))))
+  (reset! world (first @world-future))
+  (swap! world-future rest)
+  (draw-life (world-to-point-array @world) 0 (constantly nil)))
 
 (defn play []
-  (swap! playing (constantly true))
-  (draw-life-sequence (sequence-with-history (map world-to-point-array (life-sequence @world)))))
+  (reset! playing true)
+  (.prop (js/jQuery "#pause") "disabled" false)
+  (draw-life-sequence (map world-to-point-array (sequence-with-history world-future world world-history))))
 
 (defn stop []
-  (swap! playing (constantly false)))
+  (reset! playing false)
+  (.prop (js/jQuery "#pause") "disabled" true))
 
 (defn rewind []
-  (swap! playing (constantly true))
-  (draw-life-sequence @world-history))
+  (reset! playing true)
+  (.prop (js/jQuery "#pause") "disabled" false)
+  (draw-life-sequence (map world-to-point-array (sequence-with-history world-history world world-future))))
 
-(defn forward []
-  (swap! duration #(/ % 2)))
-  
-(def speed-box (d3/select "#speed"))
+(defn step-forward []
+  (draw-life (first (map world-to-point-array (sequence-with-history world-future world world-history)))
+             0
+             (constantly nil)))
 
-(defn set-speed []
-  (swap! duration (constantly (/ 1000 (read-string (get (first (first speed-box)) "value"))))))
+(defn step-backward []
+  (draw-life (first (map world-to-point-array (sequence-with-history world-history world world-future)))
+             0
+             (constantly nil)))
 
-(.on speed-box "change" set-speed)
+(defn reset []
+  (reset! world-future (concat (reverse @world-history) (list @world) @world-future))
+  (reset! world (last @world-history))
+  (reset! world-history '())
+  (draw-life (world-to-point-array @world) 0 (constantly nil)))
 
-(def play-button (-> (d3/select "#play-pause")
+(def play-button (-> (d3/select "#play")
                      (.on "click" play)))
 
-(def stop-button (-> (d3/select "#stop")
+(def stop-button (-> (d3/select "#pause")
                      (.on "click" stop)))
 
 (def rewind-button (-> (d3/select "#rewind")
                        (.on "click" rewind)))
 
-(def forward-button (-> (d3/select "#forward")
-                        (.on "click" forward)))
+(def forward-button (-> (d3/select "#step-forward")
+                        (.on "click" step-forward)))
+
+(def backward-button (-> (d3/select "#step-backward")
+                        (.on "click" step-backward)))
+
+(def reset-button (-> (d3/select "#to-beginning")
+                      (.on "click" reset)))
+
+(def gen-random-button (-> (d3/select "#gen-random")
+                           (.on "click" initialize-world)))
+
+(def gen-blank-button (-> (d3/select "#gen-blank")
+                          (.on "click" initialize-world)))
+
+(defn speed []
+  [:span
+   [:span "Speed: " (int (/ 1000 @duration)) " "]
+   [:input {:id "foo" :value (/ 1000 @duration)
+            :type "range" :min "1" :max "50"
+            :on-change #(reset! duration (int (/ 1000 (-> % .-target .-value))))}]])
+
+(defn mountit []
+  (reagent/render-component [speed]
+                            (aget (js/jQuery "span#speed") 0)))
+
+(mountit)
