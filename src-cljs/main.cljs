@@ -269,10 +269,11 @@
              (constantly nil)))
 
 (defn reset []
-  (reset! world-future (concat (reverse @world-history) (list @world) @world-future))
-  (reset! world (last @world-history))
-  (reset! world-history '())
-  (draw-life (world-to-point-array @world) 0 (constantly nil)))
+  (when (not-empty @world-history)
+    (reset! world-future (concat (rest (reverse @world-history)) (list @world) @world-future))
+    (reset! world (last @world-history))
+    (reset! world-history '())
+    (draw-life (world-to-point-array @world) 0 (constantly nil))))
 
 (def play-button (-> (d3/select "#play")
                      (.on "click" play)))
