@@ -139,6 +139,16 @@
       (vector (into-array (persistent! nworld))
               (into-array (persistent! nadjs))))))
 
+(defn toggle-cell [world-adj position]
+  (let [index (get-index position)
+        world (vec (first world-adj))
+        adjacencies (transient (vec (second world-adj)))]
+    (if (nth world index)
+      (vector (into-array (assoc world index false))
+              (into-array (persistent! (set-adjacencies index adjacencies dec))))
+      (vector (into-array (assoc world index true))
+              (into-array (persistent! (set-adjacencies index adjacencies inc)))))))
+
 (defn life-to-point-array [life]
   (loop [life life indexes (range) point-array (transient [])]
     (cond (empty? life)
@@ -202,7 +212,7 @@
         (.exit)
         (.remove))))
 
-(def duration (atom 20))
+(def duration (atom 40))
 
 (declare stop)
 
@@ -242,6 +252,12 @@
     :blank (reset! world-future (life-sequence (blank-world))))
   (reset! world (first @world-future))
   (swap! world-future rest)
+  (draw-life (world-to-point-array @world) 0 (constantly nil)))
+
+(defn alter-world [function & args]
+  (swap! world-history conj @world)
+  (swap! world #(apply function (cons % args)))
+  (reset! world-future (rest (life-sequence @world)))
   (draw-life (world-to-point-array @world) 0 (constantly nil)))
 
 (defn play []
@@ -297,7 +313,20 @@
                            (.on "click" initialize-world)))
 
 (def gen-blank-button (-> (d3/select "#gen-blank")
-                          (.on "click" initialize-world)))
+                          (.on "click" #(initialize-world :blank))))
+
+(def svg-area (-> (js/jQuery "svg#field")
+                  (.click #(let [svg (js/jQuery "div#fieldwrapper")
+                                 offset (.offset svg)
+                                 position {:x (int (* (/ (- (.-pageX %) 
+                                                            (.-left offset)) 
+                                                         (.width svg)) 
+                                                      *world-width*))
+                                           :y (int (* (/ (- (.-pageY %) 
+                                                            (.-top offset)) 
+                                                         (.height svg)) 
+                                                      *world-height*))}]
+                             (alter-world toggle-cell position)))))
 
 (defn speed []
   [:span
@@ -311,3 +340,5 @@
                             (aget (js/jQuery "span#speed") 0)))
 
 (mountit)
+
+(initialize-world :blank)
