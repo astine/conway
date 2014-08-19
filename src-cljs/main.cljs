@@ -9,6 +9,13 @@
 (def ^:dynamic *world-width* 50)
 (def ^:dynamic *world-height* 40)
 
+(defn to-key [x y]
+  (+ (* x 10000) y))
+
+(defn from-key [num]
+  [(int (/ num 10000))
+   (int (mod num 10000))])
+
 (defn adjacent-life [index life]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
@@ -17,21 +24,21 @@
         decy (dec y)
         incx (inc x)
         incy (inc y)]
-    (+ (if (contains? life [decx decy])
+    (+ (if (aget life (to-key decx decy))
          1 0)
-       (if (contains? life [incx incy])
+       (if (aget life (to-key incx incy))
          1 0)
-       (if (contains? life [decx incy])
+       (if (aget life (to-key decx incy))
          1 0)
-       (if (contains? life [incx decy])
+       (if (aget life (to-key incx decy))
          1 0)
-       (if (contains? life [decx y])
+       (if (aget life (to-key decx y))
          1 0)
-       (if (contains? life [incx y])
+       (if (aget life (to-key incx y))
          1 0)
-       (if (contains? life [x decy])
+       (if (aget life (to-key x decy))
          1 0)
-       (if (contains? life [x incy])
+       (if (aget life (to-key x incy))
          1 0))))
 
 (defn set-active [index active]
@@ -42,52 +49,50 @@
         decy (dec y)
         incx (inc x)
         incy (inc y)]
-    (reduce conj! active
-            [[decx decy]
-             [incx incy]
-             [decx incy]
-             [incx decy]
-             [decx y]
-             [incx y]
-             [x decy]
-             [x incy]])))
+    (aset active (to-key decx decy) true)
+    (aset active (to-key incx incy) true)
+    (aset active (to-key decx incy) true)
+    (aset active (to-key incx decy) true)
+    (aset active (to-key decx y) true)
+    (aset active (to-key incx y) true)
+    (aset active (to-key x decy) true)
+    (aset active (to-key x incy) true)
+    active))
 
-(defn pass-generation [world-adj]
-  (let [world (first world-adj)
-        active (second world-adj)]
-    (loop [indexes active
-           nworld (transient (first world-adj))
-           nactv (transient #{})]
-      (if (not-empty indexes)
-        (let [index (first indexes)]
-          (let [adjacencies (adjacent-life index world)]
-            (if (contains? world index)
-              (if (or (= 2 adjacencies)
-                      (= 3 adjacencies))
-                (recur (rest indexes) nworld nactv)
-                (recur (rest indexes)
-                       (disj! nworld index)
-                       (set-active index nactv)))
-              (if (= 3 adjacencies)
-                (recur (rest indexes)
-                       (conj! nworld index)
-                       (set-active index nactv))
-                (recur (rest indexes) nworld nactv)))))
-        (vector (persistent! nworld)
-                (persistent! nactv))))))
+(defn set->js [set]
+  (let [obj (js-obj)]
+    (doseq [item set]
+      (aset obj item true))
+    obj))
 
-(defn toggle-cell [world-adj index]
-  (let [world (first world-adj)
-        adjacencies (transient (second world-adj))
-        active (transient (second world-adj))]
-    (if (get world index false)
-      (vector (disj world index)
-              (persistent! (set-active index active)))
-      (vector (conj world index)
-              (persistent! (set-active index active))))))
+(defn pass-generation [[world active]]
+  (let [nworld (set->js world)
+        world (set->js world)
+        nactv (js-obj)]
+    (doseq [index active]
+      (let [adjacencies (adjacent-life index world)]
+        (if (aget world (apply to-key index))
+          (when-not (or (= 2 adjacencies)
+                        (= 3 adjacencies))
+            (aset nworld (apply to-key index) false)
+            (set-active index nactv))
+          (when (= 3 adjacencies)
+            (aset nworld (apply to-key index) true)
+            (set-active index nactv)))))
+    (vector (set (map read-string (for [[k v] (js->clj nworld) :when (true? v)] k)))
+            (set (map read-string (keys (js->clj nactv)))))))
+
+(defn toggle-cell [[world active] index]
+  (let [active (set->js active)]
+    (if (get world (apply to-key index) false)
+      (vector (disj world (apply to-key index))
+              (set (map read-string (keys (js->clj (set-active index active))))))
+      (vector (conj world (apply to-key index))
+              (set (map read-string (keys (js->clj (set-active index active)))))))))
+
 
 (defn life-to-point-array [life]
-  (into-array life))
+  (into-array (map from-key life)))
 
 (defn world-to-point-array [world]
   (life-to-point-array (first world)))
@@ -103,7 +108,7 @@
                                        (rand-int *world-height*))))]
     [life 
      (set (for [x (range *world-width*) y (range *world-height*)] 
-            [x y]))]))
+            (to-key x y)))]))
 
 (defn life-sequence [world]
   (iterate pass-generation world))
