@@ -6,10 +6,8 @@
 
 ;;; Conway engine ;;;
 
-(def ^:dynamic *world-width* 50)
-(def ^:dynamic *world-height* 40)
-
-(def blank-life (into-array (repeat (* *world-width* *world-height*) false)))
+(def ^:dynamic *world-width* 75)
+(def ^:dynamic *world-height* 60)
 
 (defn get-index [position]
   (let [{x :x y :y} position]
@@ -25,198 +23,121 @@
       (if square (print 1) (print 0)))
     (if (last row) (println 1) (println 0))))
 
+(defn gc-adjacencies [adjacencies]
+  (apply dissoc adjacencies
+         (for [[k v] adjacencies :when (zero? v)] k)))
+
 (defn adjacent-life [index life]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
-        {x :x y :y} (get-position index)
+        [x y] index
         decx (dec x)
         decy (dec y)
         incx (inc x)
         incy (inc y)]
-    (+ (if (and (<= 0 decx xmax)
-                (<= 0 decy ymax)
-                (nth life (get-index {:x decx :y decy})))
+    (+ (if (get life [decx decy] false)
          1 0)
-       (if (and (<= 0 incx xmax)
-                (<= 0 incy ymax)
-                (nth life (get-index {:x incx :y incy})))
+       (if (get life [incx incy] false)
          1 0)
-       (if (and (<= 0 decx xmax)
-                (<= 0 incy ymax)
-                (nth life (get-index {:x decx :y incy})))
+       (if (get life [decx incy] false)
          1 0)
-       (if (and (<= 0 incx xmax)
-                (<= 0 decy ymax)
-                (nth life (get-index {:x incx :y decy})))
+       (if (get life [incx decy] false)
          1 0)
-       (if (and (<= 0 decx xmax)
-                (nth life (get-index {:x decx :y y})))
+       (if (get life [decx y] false)
          1 0)
-       (if (and (<= 0 incx xmax)
-                (nth life (get-index {:x incx :y y})))
+       (if (get life [incx y] false)
          1 0)
-       (if (and (<= 0 decy ymax)
-                (nth life (get-index {:x x :y decy})))
+       (if (get life [x decy] false)
          1 0)
-       (if (and (<= 0 incy ymax)
-                (nth life (get-index {:x x :y incy})))
+       (if (get life [x incy] false)
          1 0))))
-
-(defn generate-adjacencies [life]
-  (into-array
-   (for [index (range (count life))]
-     (adjacent-life index life))))
 
 (defn set-adjacencies [index adjacencies inc-or-dec]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
-        {x :x y :y} (get-position index)
+        [x y] index
         decx (dec x)
         decy (dec y)
         incx (inc x)
         incy (inc y)]
     (as-> adjacencies adjacencies
-          (if (and (<= 0 decx xmax)
-                   (<= 0 decy ymax))
-            (let [index (get-index {:x decx :y decy})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies)
-          (if (and (<= 0 incx xmax)
-                   (<= 0 incy ymax))
-            (let [index (get-index {:x incx :y incy})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies)
-          (if (and (<= 0 decx xmax)
-                   (<= 0 incy ymax))
-            (let [index (get-index {:x decx :y incy})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies)
-          (if (and (<= 0 incx xmax)
-                   (<= 0 decy ymax))
-            (let [index (get-index {:x incx :y decy})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies)
-          (if (<= 0 decx xmax)
-            (let [index (get-index {:x decx :y y})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies)
-          (if (<= 0 incx xmax)
-            (let [index (get-index {:x incx :y y})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies)
-          (if (<= 0 decy ymax)
-            (let [index (get-index {:x x :y decy})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies)
-          (if (<= 0 incy ymax)
-            (let [index (get-index {:x x :y incy})]
-              (assoc! adjacencies index (inc-or-dec (nth adjacencies index))))
-            adjacencies))))
+      (let [index [decx decy]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0))))
+      (let [index [incx incy]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0))))
+      (let [index [decx incy]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0))))
+      (let [index [incx decy]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0))))
+      (let [index [decx y]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0))))
+      (let [index [incx y]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0))))
+      (let [index [x decy]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0))))
+      (let [index [x incy]]
+        (assoc! adjacencies index (inc-or-dec (get adjacencies index 0)))))))
 
 (defn set-active [index active]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
-        {x :x y :y} (get-position index)
+        [x y] index
         decx (dec x)
         decy (dec y)
         incx (inc x)
         incy (inc y)]
-    (as-> active active
-          (if (and (<= 0 decx xmax)
-                   (<= 0 decy ymax))
-            (let [index (get-index {:x decx :y decy})]
-              (assoc! active index true))
-            active)
-          (if (and (<= 0 incx xmax)
-                   (<= 0 incy ymax))
-            (let [index (get-index {:x incx :y incy})]
-              (assoc! active index true))
-            active)
-          (if (and (<= 0 decx xmax)
-                   (<= 0 incy ymax))
-            (let [index (get-index {:x decx :y incy})]
-              (assoc! active index true))
-            active)
-          (if (and (<= 0 incx xmax)
-                   (<= 0 decy ymax))
-            (let [index (get-index {:x incx :y decy})]
-              (assoc! active index true))
-            active)
-          (if (<= 0 decx xmax)
-            (let [index (get-index {:x decx :y y})]
-              (assoc! active index true))
-            active)
-          (if (<= 0 incx xmax)
-            (let [index (get-index {:x incx :y y})]
-              (assoc! active index true))
-            active)
-          (if (<= 0 decy ymax)
-            (let [index (get-index {:x x :y decy})]
-              (assoc! active index true))
-            active)
-          (if (<= 0 incy ymax)
-            (let [index (get-index {:x x :y incy})]
-              (assoc! active index true))
-            active))))
+    (reduce conj! active
+            [[decx decy]
+             [incx incy]
+             [decx incy]
+             [incx decy]
+             [decx y]
+             [incx y]
+             [x decy]
+             [x incy]])))
 
 (defn pass-generation [world-adj]
-  (loop [world (first world-adj)
-         adjacencies (second world-adj)
-         active (nth world-adj 2)
-         index 0
-         nworld (transient (vec (first world-adj)))
-         nadjs (transient (vec (second world-adj)))
-         nactv (transient (vec blank-life))]
-    (if (not-empty world)
-      (if (first active)
-        (if (first world)
-          (if (or (= 2 (first adjacencies))
-                  (= 3 (first adjacencies)))
-            (recur (rest world) (rest adjacencies) (rest active)
-                   (inc index)
-                   nworld nadjs nactv)
-            (recur (rest world) (rest adjacencies) (rest active)
-                   (inc index)
-                   (assoc! nworld index false)
-                   (set-adjacencies index nadjs dec)
-                   (set-active index nactv)))
-          (if (= 3 (first adjacencies))
-            (recur (rest world) (rest adjacencies) (rest active)
-                   (inc index)
-                   (assoc! nworld index true)
-                   (set-adjacencies index nadjs inc)
-                   (set-active index nactv)) 
-            (recur (rest world) (rest adjacencies) (rest active)
-                   (inc index)
-                   nworld nadjs nactv)))
-        (recur (rest world) (rest adjacencies) (rest active)
-               (inc index)
-               nworld nadjs nactv))
-      (vector (into-array (persistent! nworld))
-              (into-array (persistent! nadjs))
-              (into-array (persistent! nactv))))))
+  (let [world (first world-adj)
+        adjacencies (second world-adj)
+        active (nth world-adj 2)]
+    (loop [indexes active
+           nworld (transient (first world-adj))
+           nadjs (transient (second world-adj))
+           nactv (transient #{})]
+      (if (not-empty indexes)
+        (let [index (first indexes)]
+          (if (contains? world index)
+            (if (or (= 2 (get adjacencies index 0))
+                    (= 3 (get adjacencies index 0)))
+              (recur (rest indexes) nworld nadjs nactv)
+              (recur (rest indexes)
+                     (disj! nworld index)
+                     (set-adjacencies index nadjs dec)
+                     (set-active index nactv)))
+            (if (= 3 (get adjacencies index 0))
+              (recur (rest indexes)
+                     (conj! nworld index)
+                     (set-adjacencies index nadjs inc)
+                     (set-active index nactv))
+              (recur (rest indexes) nworld nadjs nactv))))
+        (vector (persistent! nworld)
+                (gc-adjacencies (persistent! nadjs))
+                (persistent! nactv))))))
 
-(defn toggle-cell [world-adj position]
-  (let [index (get-index position)
-        world (vec (first world-adj))
-        adjacencies (transient (vec (second world-adj)))
-        active (transient (vec (nth world-adj 2)))]
-    (if (nth world index)
-      (vector (into-array (assoc world index false))
-              (into-array (persistent! (set-adjacencies index adjacencies dec)))
-              (into-array (persistent! (set-active index active))))
-      (vector (into-array (assoc world index true))
-              (into-array (persistent! (set-adjacencies index adjacencies inc)))
-              (into-array (persistent! (set-active index active)))))))
+(defn toggle-cell [world-adj index]
+  (let [world (first world-adj)
+        adjacencies (transient (second world-adj))
+        active (transient (nth world-adj 2))]
+    (if (get world index false)
+      (vector (disj world index)
+              (persistent! (set-adjacencies index adjacencies dec))
+              (persistent! (set-active index active)))
+      (vector (conj world index)
+              (persistent! (set-adjacencies index adjacencies inc))
+              (persistent! (set-active index active))))))
 
 (defn life-to-point-array [life]
-  (loop [life life indexes (range) point-array (transient [])]
-    (cond (empty? life)
-          (into-array (persistent! point-array))
-          (first life)
-          (recur (rest life) (rest indexes) (conj! point-array (get-position (first indexes))))
-          :else
-          (recur (rest life) (rest indexes) point-array))))
+  (into-array life))
 
 (defn world-to-point-array [world]
   (life-to-point-array (first world)))
@@ -224,11 +145,19 @@
 ;;; Interface ;;;
 
 (defn blank-world []
-  [blank-life (into-array (repeat (* *world-width* *world-height*) 0)) blank-life])
+  [#{} (hash-map) #{}])
 
 (defn random-world []
-  (let [life (into-array (repeatedly (* *world-width* *world-height*) #(< (rand) 0.25)))]
-    [life (into-array (generate-adjacencies life)) (into-array (repeat (* *world-width* *world-height*) true))]))
+  (let [life (set (repeatedly (/ (* *world-width* *world-height*) 5) 
+                              #(vector (rand-int *world-width*) 
+                                       (rand-int *world-height*))))]
+    [life 
+     (zipmap (for [x (range *world-width*) y (range *world-height*)] 
+               [x y]) 
+             (for [x (range *world-width*) y (range *world-height*)] 
+               (adjacent-life [x y] life)))
+     (set (for [x (range *world-width*) y (range *world-height*)] 
+            [x y]))]))
 
 (defn life-sequence [world]
   (iterate pass-generation world))
@@ -248,8 +177,8 @@
                        (.width)
                        (/ *world-width*))]
     (-> selection
-        (.attr "y" #(str (* tile-height (:y %))))
-        (.attr "x" #(str (* tile-width (:x %))))
+        (.attr "y" #(str (* tile-height (second %))))
+        (.attr "x" #(str (* tile-width (first %))))
         (.transition)
         (.delay duration)
         (.duration 1)
@@ -259,8 +188,8 @@
         (.append "rect")
         (.attr "height" (str tile-height))
         (.attr "width" (str tile-width))
-        (.attr "y" #(str (* tile-height (:y %))))
-        (.attr "x" #(str (* tile-width (:x %))))
+        (.attr "y" #(str (* tile-height (second %))))
+        (.attr "x" #(str (* tile-width (first %))))
         (.style "fill-opacity" "1")
         (.style "fill" "black")
         (.transition)
@@ -377,14 +306,14 @@
 (def svg-area (-> (js/jQuery "svg#field")
                   (.click #(let [svg (js/jQuery "div#fieldwrapper")
                                  offset (.offset svg)
-                                 position {:x (int (* (/ (- (.-pageX %) 
-                                                            (.-left offset)) 
-                                                         (.width svg)) 
-                                                      *world-width*))
-                                           :y (int (* (/ (- (.-pageY %) 
-                                                            (.-top offset)) 
-                                                         (.height svg)) 
-                                                      *world-height*))}]
+                                 position [(int (* (/ (- (.-pageX %) 
+                                                         (.-left offset)) 
+                                                      (.width svg)) 
+                                                   *world-width*))
+                                           (int (* (/ (- (.-pageY %) 
+                                                         (.-top offset)) 
+                                                      (.height svg)) 
+                                                   *world-height*))]]
                              (alter-world toggle-cell position)))))
 
 (defn speed []
