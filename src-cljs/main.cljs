@@ -1,13 +1,15 @@
 (ns main
   (:require [cljs.reader :refer [read-string]]
             [reagent.core :as reagent :refer [atom]]
-            [cljs.core.async :refer [<! chan onto-chan]])
+            [cljs.core.async :refer [<! chan onto-chan]]
+            ;[goog.object :refer [remove]]
+)
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 ;;; Conway engine ;;;
 
-(def ^:dynamic *world-width* 50)
-(def ^:dynamic *world-height* 40)
+(def ^:dynamic *world-width* 100)
+(def ^:dynamic *world-height* 80)
 
 (defn to-key [x y]
   (+ (* x 10000) y))
@@ -19,7 +21,8 @@
 (defn adjacent-life [index life]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
-        [x y] index
+        x (int (/ index 10000))
+        y (int (mod index 10000))
         decx (dec x)
         decy (dec y)
         incx (inc x)
@@ -44,7 +47,8 @@
 (defn set-active [index active]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
-        [x y] index
+        x (int (/ index 10000))
+        y (int (mod index 10000))
         decx (dec x)
         decy (dec y)
         incx (inc x)
@@ -59,40 +63,40 @@
     (aset active (to-key x incy) true)
     active))
 
-(defn set->js [set]
+(defn seq->js [seq]
   (let [obj (js-obj)]
-    (doseq [item set]
+    (doseq [item seq]
       (aset obj item true))
     obj))
 
 (defn pass-generation [[world active]]
-  (let [nworld (set->js world)
-        world (set->js world)
+  (let [nworld (goog.object.clone world)
         nactv (js-obj)]
-    (doseq [index active]
+    (doseq [index (goog.object.getKeys active)]
       (let [adjacencies (adjacent-life index world)]
-        (if (aget world (apply to-key index))
+        (if (aget world index)
           (when-not (or (= 2 adjacencies)
                         (= 3 adjacencies))
-            (aset nworld (apply to-key index) false)
+            (goog.object.remove nworld index)
             (set-active index nactv))
           (when (= 3 adjacencies)
-            (aset nworld (apply to-key index) true)
+            (aset nworld index true)
             (set-active index nactv)))))
-    (vector (set (map read-string (for [[k v] (js->clj nworld) :when (true? v)] k)))
-            (set (map read-string (keys (js->clj nactv)))))))
+    (vector nworld
+            nactv)))
 
 (defn toggle-cell [[world active] index]
-  (let [active (set->js active)]
-    (if (get world (apply to-key index) false)
-      (vector (disj world (apply to-key index))
-              (set (map read-string (keys (js->clj (set-active index active))))))
-      (vector (conj world (apply to-key index))
-              (set (map read-string (keys (js->clj (set-active index active)))))))))
-
+  (let [index (apply to-key index)
+        nworld (goog.object.clone world)
+        nactv (goog.object.clone active)]
+    (if (true? (aget world index))
+      (vector (do (goog.object.remove nworld index) nworld)
+              (set-active index nactv))
+      (vector (do (aset nworld index true) nworld)
+              (set-active index nactv)))))
 
 (defn life-to-point-array [life]
-  (into-array (map from-key life)))
+  (goog.array.map (goog.object.getKeys life) from-key))
 
 (defn world-to-point-array [world]
   (life-to-point-array (first world)))
@@ -100,15 +104,15 @@
 ;;; Interface ;;;
 
 (defn blank-world []
-  [#{} #{}])
+  [(js-obj) (js-obj)])
 
 (defn random-world []
-  (let [life (set (repeatedly (/ (* *world-width* *world-height*) 5) 
-                              #(vector (rand-int *world-width*) 
-                                       (rand-int *world-height*))))]
+  (let [life (seq->js (repeatedly (/ (* *world-width* *world-height*) 5) 
+                                  #(to-key (rand-int *world-width*) 
+                                           (rand-int *world-height*))))]
     [life 
-     (set (for [x (range *world-width*) y (range *world-height*)] 
-            (to-key x y)))]))
+     (seq->js (for [x (range *world-width*) y (range *world-height*)] 
+                (to-key x y)))]))
 
 (defn life-sequence [world]
   (iterate pass-generation world))
