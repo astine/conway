@@ -61,6 +61,7 @@
     (aset active (to-key incx y) true)
     (aset active (to-key x decy) true)
     (aset active (to-key x incy) true)
+    (aset active (to-key x y) true)
     active))
 
 (defn seq->js [seq]
@@ -74,7 +75,7 @@
         nactv (js-obj)]
     (doseq [index (goog.object.getKeys active)]
       (let [adjacencies (adjacent-life index world)]
-        (if (aget world index)
+        (if (true? (aget world index))
           (when-not (or (= 2 adjacencies)
                         (= 3 adjacencies))
             (goog.object.remove nworld index)
