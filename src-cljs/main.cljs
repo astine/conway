@@ -12,17 +12,17 @@
 (def ^:dynamic *world-height* 80)
 
 (defn to-key [x y]
-  (+ (* x 10000) y))
+  (+ (* (+ 5000 x) 10000) (+ 5000 y)))
 
 (defn from-key [num]
-  [(int (/ num 10000))
-   (int (mod num 10000))])
+  [(- (int (/ num 10000)) 5000)
+   (- (int (mod num 10000)) 5000)])
 
 (defn adjacent-life [index life]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
-        x (int (/ index 10000))
-        y (int (mod index 10000))
+        x (- (int (/ index 10000)) 5000)
+        y (- (int (mod index 10000)) 5000)
         decx (dec x)
         decy (dec y)
         incx (inc x)
@@ -47,8 +47,8 @@
 (defn set-active [index active]
   (let [xmax (dec *world-width*)
         ymax (dec *world-height*)
-        x (int (/ index 10000))
-        y (int (mod index 10000))
+        x (- (int (/ index 10000)) 5000)
+        y (- (int (mod index 10000)) 5000)
         decx (dec x)
         decy (dec y)
         incx (inc x)
