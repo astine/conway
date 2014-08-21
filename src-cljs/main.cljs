@@ -206,16 +206,13 @@
 
 (defn play []
   (reset! playing true)
-  (.prop (js/jQuery "#pause") "disabled" false)
   (draw-life-sequence (map world-to-point-array (sequence-with-history world-future world world-history))))
 
 (defn stop []
-  (reset! playing false)
-  (.prop (js/jQuery "#pause") "disabled" true))
+  (reset! playing false))
 
 (defn rewind []
   (reset! playing true)
-  (.prop (js/jQuery "#pause") "disabled" false)
   (draw-life-sequence (map world-to-point-array (sequence-with-history world-history world world-future))))
 
 (defn step-forward []
@@ -235,30 +232,6 @@
     (reset! world-history '())
     (draw-life (world-to-point-array @world) 0 (constantly nil))))
 
-(def play-button (-> (d3/select "#play")
-                     (.on "click" play)))
-
-(def stop-button (-> (d3/select "#pause")
-                     (.on "click" stop)))
-
-(def rewind-button (-> (d3/select "#rewind")
-                       (.on "click" rewind)))
-
-(def forward-button (-> (d3/select "#step-forward")
-                        (.on "click" step-forward)))
-
-(def backward-button (-> (d3/select "#step-backward")
-                        (.on "click" step-backward)))
-
-(def reset-button (-> (d3/select "#to-beginning")
-                      (.on "click" reset)))
-
-(def gen-random-button (-> (d3/select "#gen-random")
-                           (.on "click" initialize-world)))
-
-(def gen-blank-button (-> (d3/select "#gen-blank")
-                          (.on "click" #(initialize-world :blank))))
-
 (def svg-area (-> (js/jQuery "svg#field")
                   (.click #(let [svg (js/jQuery "div#fieldwrapper")
                                  offset (.offset svg)
@@ -272,16 +245,56 @@
                                                    *world-height*))]]
                              (alter-world toggle-cell position)))))
 
-(defn speed []
+(defn controls []
   [:span
-   [:span "Speed: " (int (/ 1000 @duration)) " "]
-   [:input {:id "foo" :value (/ 1000 @duration)
-            :type "range" :min "1" :max "50"
-            :on-change #(reset! duration (int (/ 1000 (-> % .-target .-value))))}]])
+   [:input {:type "button" :value "|◀◀"
+            :id "reset"
+            :disabled @playing
+            :on-click reset}]
+   [:input {:type "button" :value "|◀"
+            :id "backward"
+            :disabled @playing
+            :on-click step-backward}]
+   [:input {:type "button" :value "◀"
+            :id "rewind"
+            :disabled @playing
+            :on-click rewind}]
+   [:input {:type "button" :value "▮▮"
+            :id "pause"
+            :disabled (not @playing)
+            :on-click stop}]
+   [:input {:type "button" :value "▶"
+            :id "play"
+            :disabled @playing
+            :on-click play}]
+   [:input {:type "button" :value "▶|"
+            :id "forward"
+            :disabled @playing
+            :on-click step-forward}]
+   [:br]
+   [:span
+    [:span "Speed: " (int (/ 1000 @duration)) " "]
+    [:input {:id "foo" :value (/ 1000 @duration)
+             :type "range" :min "1" :max "50"
+             :on-change #(reset! duration (int (/ 1000 (-> % .-target .-value))))}]]])
+
+(defn right-controls []
+  [:span
+   [:input {:type "button" :value "Generate"
+            :id "gen-random"
+            :disabled @playing
+            :on-click #(initialize-world :random)}]
+   [:input {:type "button" :value "Clear"
+            :id "gen-blank"
+            :disabled @playing
+            :on-click #(initialize-world :blank)}]])
+
 
 (defn mountit []
-  (reagent/render-component [speed]
-                            (aget (js/jQuery "span#speed") 0)))
+  (reagent/render-component [controls]
+                            (aget (js/jQuery "#controls") 0))
+  (reagent/render-component [right-controls]
+                            (aget (js/jQuery "#controls2") 0)))
 
 (mountit)
 
