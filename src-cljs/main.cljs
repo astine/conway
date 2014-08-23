@@ -11,6 +11,11 @@
 (def ^:dynamic *world-width* 100)
 (def ^:dynamic *world-height* 80)
 
+(defn key-in-view? [key]
+  (let [[x y] key]
+    (and (<= 0 x *world-width*)
+         (<= 0 y *world-height*))))
+
 (defn to-key [x y]
   (+ (* (+ 5000 x) 10000) (+ 5000 y)))
 
@@ -97,7 +102,9 @@
               (set-active index nactv)))))
 
 (defn life-to-point-array [life]
-  (goog.array.map (goog.object.getKeys life) from-key))
+  (goog.array.filter
+   (goog.array.map (goog.object.getKeys life) from-key)
+   key-in-view?))
 
 (defn world-to-point-array [world]
   (life-to-point-array (first world)))
@@ -115,8 +122,25 @@
      (seq->js (for [x (range *world-width*) y (range *world-height*)] 
                 (to-key x y)))]))
 
+(defn end-at-cycle 
+  ([sequence pred]
+     (lazy-seq
+      (cons (first sequence) (end-at-cycle sequence (rest sequence) 1 1 (or pred =)))))
+  ([tortoise hare power lambda pred]
+     (if-not (pred (first tortoise) (first hare))
+       (if (= power lambda)
+         (lazy-seq 
+          (cons (first hare) 
+                (end-at-cycle hare (rest hare) (* 2 power) 1 pred)))
+         (lazy-seq 
+          (cons (first hare) 
+                (end-at-cycle tortoise (rest hare) power (inc lambda) pred))))
+       (take 5 hare))))
+
 (defn life-sequence [world]
-  (iterate pass-generation world))
+  (end-at-cycle
+   (iterate pass-generation world)
+   #(= (set (world-to-point-array %1)) (set (world-to-point-array %2)))))
 
 (def playing (atom false))
 
