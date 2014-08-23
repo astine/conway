@@ -8,8 +8,8 @@
 
 ;;; Conway engine ;;;
 
-(def ^:dynamic *world-width* 100)
-(def ^:dynamic *world-height* 80)
+(def ^:dynamic *world-width* 200)
+(def ^:dynamic *world-height* 160)
 
 (defn key-in-view? [key]
   (let [[x y] key]
@@ -122,20 +122,16 @@
      (seq->js (for [x (range *world-width*) y (range *world-height*)] 
                 (to-key x y)))]))
 
-(defn end-at-cycle 
+(defn end-at-cycle
   ([sequence pred]
-     (lazy-seq
-      (cons (first sequence) (end-at-cycle sequence (rest sequence) 1 1 (or pred =)))))
-  ([tortoise hare power lambda pred]
+     (end-at-cycle sequence (rest sequence) pred))
+  ([tortoise hare pred]
      (if-not (pred (first tortoise) (first hare))
-       (if (= power lambda)
-         (lazy-seq 
-          (cons (first hare) 
-                (end-at-cycle hare (rest hare) (* 2 power) 1 pred)))
-         (lazy-seq 
-          (cons (first hare) 
-                (end-at-cycle tortoise (rest hare) power (inc lambda) pred))))
-       (take 5 hare))))
+       (lazy-seq
+        (cons (first tortoise)
+              (end-at-cycle (rest tortoise) (drop 2 hare) pred)))
+       (cons (first tortoise)
+             (take-while #(not (pred (first hare) %)) (rest tortoise))))))
 
 (defn life-sequence [world]
   (end-at-cycle
