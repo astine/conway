@@ -106,6 +106,7 @@
    (goog.array.map (goog.object.getKeys life) from-key)
    key-in-view?))
 
+
 (defn world-to-point-array [world]
   (life-to-point-array (first world)))
 
@@ -136,7 +137,9 @@
 (defn life-sequence [world]
   (end-at-cycle
    (iterate pass-generation world)
-   #(= (set (world-to-point-array %1)) (set (world-to-point-array %2)))))
+   #(goog.array.equals (world-to-point-array %1)
+                       (world-to-point-array %2)
+                       =)))
 
 (def playing (atom false))
 
@@ -174,19 +177,13 @@
         (.each "end" callback))
     (-> selection
         (.exit)
-        (.remove))))
+        (.remove))
+    (when (zero? (count life))
+      (callback nil 0))))
 
 (def duration (atom 40))
 
 (declare stop)
-
-(defn draw-life-sequence [life-sequence]
-  (if (not-empty life-sequence)
-    (draw-life (first life-sequence)
-               @duration
-               #(if (and (zero? %2) @playing)
-                  (draw-life-sequence (rest life-sequence))))
-    (stop)))
 
 (def world-future (atom nil))
 
@@ -194,23 +191,29 @@
 
 (def world (atom nil))
 
-(defn sequence-with-history 
+(defn step-sequence
   ([future world history]
-     (sequence-with-history @future future world history))
+     (step-sequence @future future world history))
   ([sequence future world history]
      (when (not-empty sequence)
-       (lazy-seq
-        (cons (first sequence)
-              (sequence-with-history 
-               (do 
-                 (swap! history conj @world)
-                 (reset! world (first sequence))
-                 (reset! future (rest sequence))
-                 (rest sequence))
-               future world history))))))
+       (swap! history conj @world)
+       (reset! world (first sequence))
+       (reset! future (rest sequence))
+       (first sequence))))
+
+(defn animate-sequence
+  ([future world history]
+     (animate-sequence @future future world history))
+  ([sequence future world history]
+     (if (not-empty sequence)
+       (draw-life (world-to-point-array (step-sequence sequence future world history))
+                  @duration
+                  #(if (and (zero? %2) @playing)
+                     (animate-sequence (rest sequence) future world history)))
+       (stop))))
 
 (defn initialize-world [& [type]]
-  (reset! world-history nil)
+  (reset! world-history '())
   (case (or type :random)
     :random (reset! world-future (life-sequence (random-world)))
     :blank (reset! world-future (life-sequence (blank-world))))
@@ -226,24 +229,26 @@
 
 (defn play []
   (reset! playing true)
-  (draw-life-sequence (map world-to-point-array (sequence-with-history world-future world world-history))))
+  (animate-sequence world-future world world-history))
 
 (defn stop []
   (reset! playing false))
 
 (defn rewind []
   (reset! playing true)
-  (draw-life-sequence (map world-to-point-array (sequence-with-history world-history world world-future))))
+  (animate-sequence world-history world world-future))
 
 (defn step-forward []
-  (draw-life (first (map world-to-point-array (sequence-with-history world-future world world-history)))
-             0
-             (constantly nil)))
+  (-> (or (step-sequence world-future world world-history)
+          (step-sequence (list (pass-generation @world)) world-future world world-history))
+      world-to-point-array
+      (draw-life 0 (constantly nil))))
 
 (defn step-backward []
-  (draw-life (first (map world-to-point-array (sequence-with-history world-history world world-future)))
-             0
-             (constantly nil)))
+  (-> (or (step-sequence world-history world world-future)
+          @world)
+      world-to-point-array
+      (draw-life 0 (constantly nil))))
 
 (defn reset []
   (when (not-empty @world-history)
